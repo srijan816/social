@@ -16,9 +16,17 @@ class PostStatus(str, Enum):
     failed = "failed"
 
 
+class AIProvider(str, Enum):
+    claude = "claude"
+    openai = "openai"
+    gemini = "gemini"
+    xai = "xai"
+
+
 class ContentGenerationRequest(BaseModel):
     topic: str = Field(..., description="Topic for content generation")
     platforms: List[Platform] = Field(..., description="Platforms to generate content for")
+    ai_provider: AIProvider = Field(AIProvider.claude, description="AI provider to use")
     include_research: bool = Field(True, description="Include Perplexity research")
     additional_context: Optional[str] = Field(None, description="Additional context for generation")
 

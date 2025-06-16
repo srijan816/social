@@ -81,6 +81,9 @@ export const contentAPI = {
   
   getTrendingTopics: (category = null) =>
     api.get('/api/content/trending-topics', { params: { category } }),
+  
+  getAIProviders: () =>
+    api.get('/api/content/ai-providers'),
 };
 
 // Schedule API

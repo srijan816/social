@@ -22,6 +22,7 @@ const Generate = () => {
   const [formData, setFormData] = useState({
     topic: '',
     platforms: ['twitter', 'linkedin'],
+    ai_provider: 'claude',
     includeResearch: true,
     additionalContext: '',
   });
@@ -59,6 +60,7 @@ const Generate = () => {
       setFormData({
         topic: '',
         platforms: ['twitter', 'linkedin'],
+        ai_provider: 'claude',
         includeResearch: true,
         additionalContext: '',
       });

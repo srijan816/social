@@ -14,7 +14,7 @@ from app.schemas.content import (
     ContentTemplateCreate,
     ContentTemplate as ContentTemplateSchema
 )
-from app.services.claude_service import claude_service
+from app.services.ai_service import ai_service, AIProvider
 from app.services.perplexity_service import perplexity_service
 
 router = APIRouter()
@@ -46,24 +46,13 @@ async def generate_content(
     # Generate content for each platform
     for platform in request.platforms:
         try:
-            # Use user's API key if available
-            user_claude_key = current_user.anthropic_api_key
-            if user_claude_key:
-                # Create a new service instance with user's key
-                user_claude_service = type(claude_service)(user_claude_key)
-                content = await user_claude_service.generate_content(
-                    request.topic,
-                    platform.value,
-                    research_data,
-                    request.additional_context
-                )
-            else:
-                content = await claude_service.generate_content(
-                    request.topic,
-                    platform.value,
-                    research_data,
-                    request.additional_context
-                )
+            content = await ai_service.generate_content(
+                request.topic,
+                platform.value,
+                request.ai_provider,
+                research_data,
+                request.additional_context
+            )
             
             # Extract hashtags if present
             hashtags = []
@@ -252,3 +241,15 @@ async def get_trending_topics(
             status_code=500,
             detail=f"Failed to fetch trending topics: {str(e)}"
         )
+
+
+@router.get("/ai-providers")
+async def get_ai_providers(
+    current_user: User = Depends(get_current_active_user)
+) -> Any:
+    """Get available AI providers and their information"""
+    
+    return {
+        "available_providers": ai_service.get_available_providers(),
+        "provider_info": ai_service.get_provider_info()
+    }

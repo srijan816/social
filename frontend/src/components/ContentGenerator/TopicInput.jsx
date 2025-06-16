@@ -10,6 +10,11 @@ import {
   Paper,
   Chip,
   Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
 } from '@mui/material';
 import { Twitter, LinkedIn, TrendingUp } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
@@ -19,6 +24,11 @@ const TopicInput = ({ formData, onUpdate, onNext }) => {
   const { data: trendingTopics } = useQuery({
     queryKey: ['trendingTopics'],
     queryFn: () => contentAPI.getTrendingTopics(),
+  });
+
+  const { data: aiProviders } = useQuery({
+    queryKey: ['aiProviders'],
+    queryFn: () => contentAPI.getAIProviders(),
   });
 
   const handlePlatformChange = (platform) => {
@@ -91,6 +101,37 @@ const TopicInput = ({ formData, onUpdate, onNext }) => {
               label="LinkedIn - Professional insights"
             />
           </Box>
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>AI Provider</InputLabel>
+            <Select
+              value={formData.ai_provider || 'claude'}
+              label="AI Provider"
+              onChange={(e) => onUpdate({ ai_provider: e.target.value })}
+            >
+              {aiProviders?.data?.available_providers?.map((provider) => (
+                <MenuItem key={provider} value={provider}>
+                  {aiProviders.data.provider_info[provider]?.name || provider}
+                </MenuItem>
+              )) || [
+                <MenuItem key="claude" value="claude">Claude 4 Sonnet</MenuItem>,
+                <MenuItem key="openai" value="openai">GPT-4o Mini</MenuItem>,
+                <MenuItem key="gemini" value="gemini">Gemini 2.5 Flash</MenuItem>,
+                <MenuItem key="xai" value="xai">Grok Beta</MenuItem>
+              ]}
+            </Select>
+          </FormControl>
+
+          {aiProviders?.data?.provider_info?.[formData.ai_provider || 'claude'] && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                <strong>{aiProviders.data.provider_info[formData.ai_provider || 'claude'].name}:</strong>{' '}
+                {aiProviders.data.provider_info[formData.ai_provider || 'claude'].description}
+                <br />
+                <em>{aiProviders.data.provider_info[formData.ai_provider || 'claude'].cost}</em>
+              </Typography>
+            </Alert>
+          )}
 
           <FormControlLabel
             control={

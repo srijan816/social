@@ -28,9 +28,26 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
         return self.BACKEND_CORS_ORIGINS
     
-    # API Keys
+    # AI API Keys
     ANTHROPIC_API_KEY: Optional[str] = None
     PERPLEXITY_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
+    XAI_API_KEY: Optional[str] = None
+    
+    # Gemini API Keys (multiple for rate limiting)
+    GEMINI_API_KEY_1: Optional[str] = None
+    GEMINI_API_KEY_2: Optional[str] = None
+    GEMINI_API_KEY_3: Optional[str] = None
+    GEMINI_API_KEY_4: Optional[str] = None
+    
+    def get_gemini_api_keys(self) -> List[str]:
+        """Get list of available Gemini API keys"""
+        keys = []
+        for i in range(1, 5):
+            key = getattr(self, f'GEMINI_API_KEY_{i}', None)
+            if key:
+                keys.append(key)
+        return keys
     
     # Social Media Platforms
     TWITTER_API_KEY: Optional[str] = None
