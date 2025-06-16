@@ -15,13 +15,20 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  TextField,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Search,
   TrendingUp,
   Source,
   ExpandMore,
+  Edit,
+  Save,
+  Cancel,
 } from '@mui/icons-material';
+import { contentAPI } from '../../services/api';
 
 const ResearchPreview = ({ 
   topic, 
@@ -34,38 +41,64 @@ const ResearchPreview = ({
   const [researchData, setResearchData] = useState(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [useAIResearch, setUseAIResearch] = useState(false);
+  const [customResearch, setCustomResearch] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedResearch, setEditedResearch] = useState('');
 
   useEffect(() => {
     const fetchResearch = async () => {
+      if (!useAIResearch) {
+        // Use custom research if provided
+        if (customResearch.trim()) {
+          const customData = {
+            query: topic,
+            findings: customResearch.split('\n').filter(line => line.trim()).slice(0, 5),
+            sources: ['User provided research'],
+            full_content: customResearch,
+            timestamp: new Date().toISOString()
+          };
+          setResearchData(customData);
+          onResearchComplete(customData);
+        } else {
+          setResearchData(null);
+          onResearchComplete(null);
+        }
+        return;
+      }
+
       setResearchLoading(true);
       setError(null);
       
       try {
-        // Simulate research API call
-        // In real implementation, this would call the Perplexity API
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Researching topic:', topic);
         
-        const mockResearchData = {
-          query: topic,
-          findings: [
-            `Recent studies show significant growth in ${topic} market by 45% in 2024`,
-            `Industry experts predict ${topic} will reshape business operations`,
-            `Leading companies are investing heavily in ${topic} technologies`,
-            `Consumer adoption of ${topic} increased by 60% year-over-year`,
-            `Research indicates ${topic} can improve efficiency by up to 30%`
-          ],
-          sources: [
-            "TechCrunch - Industry Analysis 2024",
-            "Harvard Business Review - Digital Transformation",
-            "McKinsey Global Institute - Technology Report"
-          ],
-          timestamp: new Date().toISOString()
+        const response = await contentAPI.researchTopic({
+          topic: topic,
+          additional_context: additionalContext
+        });
+        
+        console.log('Research response:', response.data);
+        
+        // Append AI research to existing custom research
+        const combinedResearch = customResearch.trim() 
+          ? `${customResearch}\n\n--- AI Research ---\n${response.data.full_content || ''}`
+          : response.data.full_content || '';
+        
+        const combinedData = {
+          ...response.data,
+          full_content: combinedResearch
         };
         
-        setResearchData(mockResearchData);
-        onResearchComplete(mockResearchData);
+        setResearchData(combinedData);
+        setEditedResearch(combinedResearch);
+        setCustomResearch(combinedResearch);
+        onResearchComplete(combinedData);
       } catch (err) {
-        setError('Failed to fetch research data. You can still proceed with content generation.');
+        console.error('Research failed:', err);
+        setError(
+          `Failed to fetch research data: ${err.response?.data?.detail || err.message}. You can still proceed with content generation.`
+        );
       }
       
       setResearchLoading(false);
@@ -74,7 +107,23 @@ const ResearchPreview = ({
     if (topic) {
       fetchResearch();
     }
-  }, [topic, additionalContext, onResearchComplete]);
+  }, [topic, additionalContext, onResearchComplete, useAIResearch, customResearch]);
+
+  const handleSaveEdit = () => {
+    const updatedData = {
+      ...researchData,
+      full_content: editedResearch,
+      findings: editedResearch.split('\n').filter(line => line.trim()).slice(0, 5)
+    };
+    setResearchData(updatedData);
+    onResearchComplete(updatedData);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedResearch(researchData?.full_content || '');
+    setIsEditing(false);
+  };
 
   if (researchLoading) {
     return (
@@ -138,11 +187,40 @@ const ResearchPreview = ({
     <Box>
       <Typography variant="h6" gutterBottom>
         <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
-        Research Insights for "{topic}"
+        Research for "{topic}"
       </Typography>
 
-      {researchData && (
+      {/* Custom Research Input - Always shown first */}
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1">
+            Add Your Research Content
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => setUseAIResearch(true)}
+            disabled={researchLoading}
+            startIcon={<Search />}
+          >
+            {researchLoading ? 'Loading...' : 'Fill with AI Research'}
+          </Button>
+        </Box>
+        <TextField
+          fullWidth
+          multiline
+          rows={8}
+          label="Enter your research content"
+          placeholder="Add your research findings, data, statistics, insights, or any context you want to include in the content generation..."
+          value={customResearch}
+          onChange={(e) => setCustomResearch(e.target.value)}
+          variant="outlined"
+        />
+      </Box>
+
+      {/* AI Research Results */}
+      {useAIResearch && researchData && (
         <>
+          {/* Key Findings */}
           <Accordion defaultExpanded sx={{ mb: 2 }}>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography variant="subtitle1">
@@ -163,7 +241,8 @@ const ResearchPreview = ({
             </AccordionDetails>
           </Accordion>
 
-          <Accordion sx={{ mb: 3 }}>
+          {/* Sources */}
+          <Accordion sx={{ mb: 2 }}>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography variant="subtitle1">
                 <Source sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -184,11 +263,70 @@ const ResearchPreview = ({
             </AccordionDetails>
           </Accordion>
 
+          {/* Full Research Content */}
+          <Accordion sx={{ mb: 3 }}>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
+                  Full Research Content
+                </Typography>
+                {!isEditing && (
+                  <Button
+                    size="small"
+                    startIcon={<Edit />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditing(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              {isEditing ? (
+                <Box>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={12}
+                    value={editedResearch}
+                    onChange={(e) => setEditedResearch(e.target.value)}
+                    variant="outlined"
+                    sx={{ mb: 2 }}
+                  />
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<Save />}
+                      onClick={handleSaveEdit}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Cancel />}
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {researchData.full_content || 'No full content available'}
+                </Typography>
+              )}
+            </AccordionDetails>
+          </Accordion>
+
           <Alert severity="success" sx={{ mb: 3 }}>
             Research complete! This data will be used to create compelling, fact-based content.
           </Alert>
         </>
       )}
+
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Button onClick={onBack}>
