@@ -1,0 +1,36 @@
+{
+  "name": "socialai-pro",
+  "version": "1.0.0",
+  "description": "AI-powered social media content automation platform",
+  "scripts": {
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "start:frontend": "cd frontend && npm start",
+    "dev": "npm run start",
+    "install:all": "npm run install:backend && npm run install:frontend && npm install",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "install:frontend": "cd frontend && npm install",
+    "setup": "npm run install:all && npm run setup:env",
+    "setup:env": "cp backend/.env.example backend/.env && cp frontend/.env.example frontend/.env.local",
+    "test": "concurrently \"npm run test:backend\" \"npm run test:frontend\"",
+    "test:backend": "cd backend && pytest",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "build": "cd frontend && npm run build",
+    "lint": "concurrently \"npm run lint:backend\" \"npm run lint:frontend\"",
+    "lint:backend": "cd backend && flake8 app/",
+    "lint:frontend": "cd frontend && npm run lint || true"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "social-media",
+    "ai",
+    "automation",
+    "content-generation",
+    "fastapi",
+    "react"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
