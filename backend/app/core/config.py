@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     
     # AI Model Settings
     CLAUDE_MODEL: str = "claude-4-sonnet-20250514"
-    PERPLEXITY_MODEL: str = "sonar-pro"
+    PERPLEXITY_MODEL: str = "llama-3.1-sonar-large-128k-online"
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60

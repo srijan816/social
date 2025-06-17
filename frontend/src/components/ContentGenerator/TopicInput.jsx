@@ -67,8 +67,8 @@ const TopicInput = ({ formData, onUpdate, onNext }) => {
             fullWidth
             label="Additional Context (Optional)"
             placeholder="Any specific angle, audience, or details you want to include..."
-            value={formData.additionalContext}
-            onChange={(e) => onUpdate({ additionalContext: e.target.value })}
+            value={formData.additional_context}
+            onChange={(e) => onUpdate({ additional_context: e.target.value })}
             multiline
             rows={2}
             sx={{ mb: 3 }}
@@ -136,8 +136,8 @@ const TopicInput = ({ formData, onUpdate, onNext }) => {
           <FormControlLabel
             control={
               <Checkbox
-                checked={formData.includeResearch}
-                onChange={(e) => onUpdate({ includeResearch: e.target.checked })}
+                checked={formData.include_research}
+                onChange={(e) => onUpdate({ include_research: e.target.checked })}
               />
             }
             label="Include AI research (recommended)"

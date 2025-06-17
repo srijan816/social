@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Generate from './pages/Generate';
+import QuickPost from './components/QuickPost';
 import Schedule from './pages/Schedule';
 import Settings from './pages/Settings';
 
@@ -74,6 +75,16 @@ function App() {
             <PrivateRoute>
               <Layout>
                 <Generate />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/quick-post"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <QuickPost />
               </Layout>
             </PrivateRoute>
           }

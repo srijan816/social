@@ -4,6 +4,8 @@ import openai
 from google import genai
 from google.genai import types
 import random
+import json
+import re
 from enum import Enum
 
 from app.core.config import settings
@@ -30,26 +32,42 @@ class UnifiedAIService:
     
     def _init_clients(self):
         """Initialize all available AI clients"""
-        if settings.ANTHROPIC_API_KEY:
-            self.claude_client = anthropic.Anthropic(
-                api_key=settings.ANTHROPIC_API_KEY
-            )
+        try:
+            if settings.ANTHROPIC_API_KEY:
+                self.claude_client = anthropic.Anthropic(
+                    api_key=settings.ANTHROPIC_API_KEY
+                )
+        except Exception as e:
+            print(f"Failed to initialize Claude client: {e}")
+            self.claude_client = None
         
-        if settings.OPENAI_API_KEY:
-            self.openai_client = openai.OpenAI(
-                api_key=settings.OPENAI_API_KEY
-            )
+        try:
+            if settings.OPENAI_API_KEY:
+                self.openai_client = openai.OpenAI(
+                    api_key=settings.OPENAI_API_KEY
+                )
+        except Exception as e:
+            print(f"Failed to initialize OpenAI client: {e}")
+            self.openai_client = None
         
-        if settings.XAI_API_KEY:
-            self.xai_client = openai.OpenAI(
-                api_key=settings.XAI_API_KEY,
-                base_url="https://api.x.ai/v1"
-            )
+        try:
+            if settings.XAI_API_KEY:
+                self.xai_client = openai.OpenAI(
+                    api_key=settings.XAI_API_KEY,
+                    base_url="https://api.x.ai/v1"
+                )
+        except Exception as e:
+            print(f"Failed to initialize XAI client: {e}")
+            self.xai_client = None
         
-        if self.gemini_keys:
-            self.gemini_client = genai.Client(
-                api_key=self.gemini_keys[0]
-            )
+        try:
+            if self.gemini_keys:
+                self.gemini_client = genai.Client(
+                    api_key=self.gemini_keys[0]
+                )
+        except Exception as e:
+            print(f"Failed to initialize Gemini client: {e}")
+            self.gemini_client = None
     
     def _get_next_gemini_key(self) -> str:
         """Rotate through Gemini API keys for rate limiting"""
@@ -67,7 +85,7 @@ class UnifiedAIService:
         provider: AIProvider = AIProvider.CLAUDE,
         research_data: Optional[Dict[str, Any]] = None,
         additional_context: Optional[str] = None
-    ) -> str:
+    ) -> List[Dict[str, Any]]:
         """Generate content using specified AI provider"""
         
         system_prompt = self._get_system_prompt(platform)
@@ -75,22 +93,33 @@ class UnifiedAIService:
         
         try:
             if provider == AIProvider.CLAUDE and self.claude_client:
-                return await self._generate_with_claude(system_prompt, user_message)
+                raw_response = self._generate_with_claude(system_prompt, user_message)
             elif provider == AIProvider.OPENAI and self.openai_client:
-                return await self._generate_with_openai(system_prompt, user_message)
+                raw_response = self._generate_with_openai(system_prompt, user_message)
             elif provider == AIProvider.GEMINI and self.gemini_client:
-                return await self._generate_with_gemini(system_prompt, user_message)
+                raw_response = await self._generate_with_gemini(system_prompt, user_message)
             elif provider == AIProvider.XAI and self.xai_client:
-                return await self._generate_with_xai(system_prompt, user_message)
+                raw_response = self._generate_with_xai(system_prompt, user_message)
             else:
                 # Fallback to available provider
-                return await self._generate_with_fallback(system_prompt, user_message)
+                raw_response = await self._generate_with_fallback(system_prompt, user_message)
+                
+            return self._parse_ai_response(raw_response, platform)
                 
         except Exception as e:
             # Try fallback provider
-            return await self._generate_with_fallback(system_prompt, user_message)
+            try:
+                raw_response = await self._generate_with_fallback(system_prompt, user_message)
+                return self._parse_ai_response(raw_response, platform)
+            except Exception as fallback_error:
+                # Return a single basic suggestion as last resort
+                return [{
+                    "content": f"Content about {topic} for {platform}",
+                    "variation_note": "Basic fallback",
+                    "character_count": len(f"Content about {topic} for {platform}")
+                }]
     
-    async def _generate_with_claude(self, system_prompt: str, user_message: str) -> str:
+    def _generate_with_claude(self, system_prompt: str, user_message: str) -> str:
         """Generate content using Claude"""
         message = self.claude_client.messages.create(
             model="claude-4-sonnet-20250514",
@@ -101,7 +130,7 @@ class UnifiedAIService:
         )
         return message.content[0].text
     
-    async def _generate_with_openai(self, system_prompt: str, user_message: str) -> str:
+    def _generate_with_openai(self, system_prompt: str, user_message: str) -> str:
         """Generate content using OpenAI"""
         response = self.openai_client.chat.completions.create(
             model="gpt-4o-mini",  # Using cheaper model for cost efficiency
@@ -114,7 +143,7 @@ class UnifiedAIService:
         )
         return response.choices[0].message.content
     
-    async def _generate_with_xai(self, system_prompt: str, user_message: str) -> str:
+    def _generate_with_xai(self, system_prompt: str, user_message: str) -> str:
         """Generate content using XAI (Grok)"""
         response = self.xai_client.chat.completions.create(
             model="grok-beta",
@@ -170,25 +199,71 @@ class UnifiedAIService:
             if client:
                 try:
                     if provider == AIProvider.CLAUDE:
-                        return await self._generate_with_claude(system_prompt, user_message)
+                        return self._generate_with_claude(system_prompt, user_message)
                     elif provider == AIProvider.GEMINI:
                         return await self._generate_with_gemini(system_prompt, user_message)
                     elif provider == AIProvider.OPENAI:
-                        return await self._generate_with_openai(system_prompt, user_message)
+                        return self._generate_with_openai(system_prompt, user_message)
                     elif provider == AIProvider.XAI:
-                        return await self._generate_with_xai(system_prompt, user_message)
+                        return self._generate_with_xai(system_prompt, user_message)
                 except Exception as e:
                     continue
         
         raise Exception("No AI providers available or all failed")
     
+    def _parse_ai_response(self, raw_response: str, platform: str) -> List[Dict[str, Any]]:
+        """Parse AI response into structured suggestions"""
+        try:
+            # Try to extract JSON from the response
+            json_match = re.search(r'\{.*"suggestions".*\}', raw_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                parsed = json.loads(json_str)
+                suggestions = parsed.get("suggestions", [])
+                
+                # Process each suggestion
+                processed_suggestions = []
+                for suggestion in suggestions[:3]:  # Limit to 3
+                    content = suggestion.get("content", "")
+                    processed_suggestions.append({
+                        "content": content,
+                        "character_count": len(content),
+                        "hashtags": self._extract_hashtags(content) if platform.lower() == "linkedin" else None,
+                        "variation_note": suggestion.get("variation_note", "")
+                    })
+                
+                return processed_suggestions
+            
+        except Exception as e:
+            print(f"Failed to parse JSON response: {e}")
+        
+        # Fallback: treat as single content
+        content = raw_response.strip()
+        return [{
+            "content": content,
+            "character_count": len(content),
+            "hashtags": self._extract_hashtags(content) if platform.lower() == "linkedin" else None,
+            "variation_note": "Single response"
+        }]
+    
+    def _extract_hashtags(self, content: str) -> List[str]:
+        """Extract hashtags from content"""
+        hashtags = re.findall(r'#(\w+)', content)
+        return hashtags[:5]  # Limit to 5 hashtags
+    
     def _get_system_prompt(self, platform: str) -> str:
         """Get platform-specific system prompt"""
         
         if platform.lower() == "twitter":
-            return """You are an expert X/Twitter copywriter specializing in viral content. Create posts that:
+            return """You are an expert X/Twitter copywriter specializing in viral content. 
 
-STRUCTURE:
+TASK: Generate exactly 3 different post variations, each with a distinct approach:
+
+VARIATION 1: Data-driven hook
+VARIATION 2: Controversial/contrarian take  
+VARIATION 3: Story-driven or question-based
+
+STRUCTURE FOR EACH:
 - Hook (first 7 words must grab attention)
 - Core insight/data point
 - Punchline or call-to-action
@@ -196,7 +271,6 @@ STRUCTURE:
 STYLE:
 - Short sentences. Maximum impact.
 - Use numbers when possible
-- Controversial takes welcome
 - Humor/satire when fitting
 - Never use hashtags in main text
 - Thread if needed (indicate with 1/)
@@ -207,12 +281,36 @@ EXAMPLES OF HOOKS:
 - "[Industry] is broken. Here's proof:"
 - "I analyzed [X] data. The results..."
 
-Keep it under 280 characters and make it punchy, data-driven, and engaging."""
+Keep each under 280 characters and make them punchy, data-driven, and engaging.
+
+IMPORTANT: Respond with JSON format containing 3 suggestions:
+{
+  "suggestions": [
+    {
+      "content": "post content here",
+      "variation_note": "Data-driven approach"
+    },
+    {
+      "content": "post content here", 
+      "variation_note": "Contrarian take"
+    },
+    {
+      "content": "post content here",
+      "variation_note": "Story/question approach"
+    }
+  ]
+}"""
 
         elif platform.lower() == "linkedin":
-            return """You are a LinkedIn thought leader. Create professional content that drives engagement:
+            return """You are a LinkedIn thought leader specializing in professional content.
 
-STRUCTURE:
+TASK: Generate exactly 3 different post variations, each with a distinct approach:
+
+VARIATION 1: Personal story/lesson learned
+VARIATION 2: Industry insight/trend analysis
+VARIATION 3: Actionable tips/how-to
+
+STRUCTURE FOR EACH:
 1. Opening hook (personal story or insight)
 2. Core value/lesson (3-5 key points)
 3. Actionable takeaway
@@ -232,7 +330,23 @@ TOPICS THAT PERFORM WELL:
 - Productivity tips
 - Success/failure stories
 
-Format for maximum engagement with clear paragraphs and bullet points when helpful."""
+IMPORTANT: Respond with JSON format containing 3 suggestions:
+{
+  "suggestions": [
+    {
+      "content": "post content here including hashtags",
+      "variation_note": "Personal story approach"
+    },
+    {
+      "content": "post content here including hashtags", 
+      "variation_note": "Industry insight approach"
+    },
+    {
+      "content": "post content here including hashtags",
+      "variation_note": "Actionable tips approach"
+    }
+  ]
+}"""
         
         else:
             return "You are a social media copywriter. Create engaging content for the specified platform."

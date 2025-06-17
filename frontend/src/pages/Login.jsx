@@ -9,6 +9,8 @@ import {
   Box,
   Alert,
   CircularProgress,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +31,7 @@ const Login = () => {
     setLoading(true);
     setError('');
 
-    const result = await login(data.username, data.password);
+    const result = await login(data.username, data.password, data.rememberMe);
 
     if (result.success) {
       navigate('/dashboard');
@@ -94,6 +96,16 @@ const Login = () => {
               })}
               error={!!errors.password}
               helperText={errors.password?.message}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  {...register('rememberMe')}
+                  color="primary"
+                />
+              }
+              label="Remember me for 2 weeks"
+              sx={{ mt: 1 }}
             />
             <Button
               type="submit"

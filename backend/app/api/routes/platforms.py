@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db, get_current_active_user
 from app.models.user import User
 from app.schemas.user import PlatformCredentials, UserAPIKeys
-from app.services.x_service import XService
+from app.services.twitter_service import twitter_service
 from app.services.linkedin_service import LinkedInService
 
 router = APIRouter()
@@ -77,11 +77,9 @@ async def get_platform_status(
     # Validate Twitter credentials
     if current_user.twitter_access_token:
         try:
-            twitter_service = XService(
-                current_user.twitter_access_token,
-                current_user.twitter_access_token_secret
-            )
-            status["twitter"]["valid"] = await twitter_service.validate_credentials()
+            # Use global twitter_service for validation
+            test_result = await twitter_service.test_connection()
+            status["twitter"]["valid"] = test_result.get("success", False)
         except:
             status["twitter"]["valid"] = False
     
@@ -149,17 +147,14 @@ async def test_platform_connection(
             raise HTTPException(status_code=400, detail="Twitter credentials not configured")
         
         try:
-            twitter_service = XService(
-                current_user.twitter_access_token,
-                current_user.twitter_access_token_secret
-            )
-            is_valid = await twitter_service.validate_credentials()
+            test_result = await twitter_service.test_connection()
+            is_valid = test_result.get("success", False)
             
             return {
                 "platform": "twitter",
                 "connected": True,
                 "valid": is_valid,
-                "message": "Connection successful" if is_valid else "Invalid credentials"
+                "message": test_result.get("user", {}).get("screen_name", "Connection successful") if is_valid else "Invalid credentials"
             }
             
         except Exception as e:

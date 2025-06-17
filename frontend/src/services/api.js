@@ -38,14 +38,11 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (username, password) => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    return api.post('/api/auth/login', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+  login: (username, password, rememberMe = false) => {
+    return api.post('/api/auth/login', {
+      username,
+      password,
+      remember_me: rememberMe
     });
   },
   
@@ -60,6 +57,9 @@ export const authAPI = {
 export const contentAPI = {
   generateContent: (data) =>
     api.post('/api/content/generate', data),
+  
+  researchTopic: (data) =>
+    api.post('/api/content/research', data),
   
   createPost: (postData) =>
     api.post('/api/content/posts', postData),
@@ -104,6 +104,9 @@ export const scheduleAPI = {
   
   publishNow: (postId) =>
     api.post(`/api/schedule/publish-now/${postId}`),
+  
+  quickPost: (postData) =>
+    api.post('/api/schedule/quick-post', postData),
 };
 
 // Platforms API

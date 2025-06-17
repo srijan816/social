@@ -37,44 +37,52 @@ const PlatformIcon = ({ platform }) => {
     <LinkedIn color="primary" />;
 };
 
-const ContentCard = ({ content, onEdit, onRegenerate, onSave, onSchedule, onPublish }) => {
+const SuggestionCard = ({ suggestion, platform, onEdit, onSave, onSchedule, onPublish, isPublishing, suggestionIndex }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(content.content);
+  const [editedContent, setEditedContent] = useState(suggestion.content);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduledTime, setScheduledTime] = useState(new Date());
 
   const handleSaveEdit = () => {
-    onEdit(content.platform, editedContent);
+    onEdit(platform, editedContent, suggestionIndex);
     setIsEditing(false);
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content.content);
+    navigator.clipboard.writeText(suggestion.content);
   };
 
   const handleSchedule = () => {
-    onSchedule(content.platform, scheduledTime);
+    onSchedule(platform, scheduledTime, suggestionIndex);
     setScheduleDialogOpen(false);
   };
 
-  const characterLimit = content.platform === 'twitter' ? 280 : 3000;
+  const characterLimit = platform === 'twitter' ? 280 : 3000;
   const isOverLimit = editedContent.length > characterLimit;
 
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', mb: 2 }}>
       <CardContent sx={{ flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <PlatformIcon platform={content.platform} />
-          <Typography variant="h6" sx={{ ml: 1, textTransform: 'capitalize' }}>
-            {content.platform === 'twitter' ? 'X (Twitter)' : 'LinkedIn'}
-          </Typography>
-          <Box sx={{ ml: 'auto' }}>
+        {suggestion.variation_note && (
+          <Box sx={{ mb: 2 }}>
             <Chip
-              label={`${content.character_count}/${characterLimit}`}
-              color={content.character_count > characterLimit ? 'error' : 'default'}
+              label={suggestion.variation_note}
+              color="secondary"
               size="small"
+              variant="outlined"
             />
           </Box>
+        )}
+
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
+            Suggestion {suggestionIndex + 1}
+          </Typography>
+          <Chip
+            label={`${suggestion.character_count}/${characterLimit}`}
+            color={suggestion.character_count > characterLimit ? 'error' : 'default'}
+            size="small"
+          />
         </Box>
 
         {isEditing ? (
@@ -109,17 +117,17 @@ const ContentCard = ({ content, onEdit, onRegenerate, onSave, onSchedule, onPubl
               minHeight: 120,
             }}
           >
-            {content.content}
+            {suggestion.content}
           </Typography>
         )}
 
-        {content.hashtags && (
+        {suggestion.hashtags && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" gutterBottom>
               Suggested Hashtags:
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-              {content.hashtags.map((tag, index) => (
+              {suggestion.hashtags.map((tag, index) => (
                 <Chip key={index} label={`#${tag}`} size="small" variant="outlined" />
               ))}
             </Box>
@@ -132,15 +140,12 @@ const ContentCard = ({ content, onEdit, onRegenerate, onSave, onSchedule, onPubl
           <IconButton onClick={() => setIsEditing(true)} disabled={isEditing}>
             <Edit />
           </IconButton>
-          <IconButton onClick={() => onRegenerate(content.platform)}>
-            <Refresh />
-          </IconButton>
           <IconButton onClick={handleCopy}>
             <ContentCopy />
           </IconButton>
           <Button
             startIcon={<Save />}
-            onClick={() => onSave(content.platform)}
+            onClick={() => onSave(platform, suggestionIndex)}
             size="small"
           >
             Save
@@ -154,11 +159,12 @@ const ContentCard = ({ content, onEdit, onRegenerate, onSave, onSchedule, onPubl
           </Button>
           <Button
             startIcon={<Publish />}
-            onClick={() => onPublish(content.platform)}
+            onClick={() => onPublish(platform, suggestionIndex)}
             variant="outlined"
             size="small"
+            disabled={isPublishing}
           >
-            Publish Now
+            {isPublishing ? 'Publishing...' : 'Publish Now'}
           </Button>
         </Box>
       </Box>
@@ -186,8 +192,46 @@ const ContentCard = ({ content, onEdit, onRegenerate, onSave, onSchedule, onPubl
   );
 };
 
+const ContentCard = ({ contentItem, onEdit, onRegenerate, onSave, onSchedule, onPublish, isPublishing }) => {
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, p: 2, backgroundColor: 'grey.100', borderRadius: 1 }}>
+        <PlatformIcon platform={contentItem.platform} />
+        <Typography variant="h6" sx={{ ml: 1, textTransform: 'capitalize' }}>
+          {contentItem.platform === 'twitter' ? 'X (Twitter)' : 'LinkedIn'}
+        </Typography>
+        <Box sx={{ ml: 'auto' }}>
+          <Button
+            startIcon={<Refresh />}
+            onClick={() => onRegenerate(contentItem.platform)}
+            size="small"
+            variant="outlined"
+          >
+            Regenerate All
+          </Button>
+        </Box>
+      </Box>
+      
+      {contentItem.suggestions.map((suggestion, index) => (
+        <SuggestionCard
+          key={index}
+          suggestion={suggestion}
+          platform={contentItem.platform}
+          suggestionIndex={index}
+          onEdit={onEdit}
+          onSave={onSave}
+          onSchedule={onSchedule}
+          onPublish={onPublish}
+          isPublishing={isPublishing === `${contentItem.platform}-${index}`}
+        />
+      ))}
+    </Box>
+  );
+};
+
 const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) => {
   const [content, setContent] = useState(generatedContent);
+  const [publishingPlatform, setPublishingPlatform] = useState(null);
   const queryClient = useQueryClient();
 
   const saveMutation = useMutation({
@@ -208,11 +252,18 @@ const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) 
     mutationFn: ({ postId, count }) => contentAPI.generateVariations(postId, count),
   });
 
-  const handleEdit = (platform, newContent) => {
+  const handleEdit = (platform, newContent, suggestionIndex) => {
     setContent(prev => 
       prev.map(item => 
         item.platform === platform 
-          ? { ...item, content: newContent, character_count: newContent.length }
+          ? {
+              ...item,
+              suggestions: item.suggestions.map((suggestion, index) =>
+                index === suggestionIndex
+                  ? { ...suggestion, content: newContent, character_count: newContent.length }
+                  : suggestion
+              )
+            }
           : item
       )
     );
@@ -223,13 +274,13 @@ const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) 
     console.log('Regenerate content for:', platform);
   };
 
-  const handleSave = async (platform) => {
+  const handleSave = async (platform, suggestionIndex) => {
     const contentItem = content.find(item => item.platform === platform);
-    if (contentItem) {
+    if (contentItem && contentItem.suggestions[suggestionIndex]) {
       try {
         await saveMutation.mutateAsync({
           topic: researchData?.query || 'Generated Content',
-          content: contentItem.content,
+          content: contentItem.suggestions[suggestionIndex].content,
           platform: platform,
           research_data: researchData,
         });
@@ -240,14 +291,14 @@ const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) 
     }
   };
 
-  const handleSchedule = async (platform, scheduledTime) => {
+  const handleSchedule = async (platform, scheduledTime, suggestionIndex) => {
     // First save the content, then schedule it
     const contentItem = content.find(item => item.platform === platform);
-    if (contentItem) {
+    if (contentItem && contentItem.suggestions[suggestionIndex]) {
       try {
         const savedPost = await saveMutation.mutateAsync({
           topic: researchData?.query || 'Generated Content',
-          content: contentItem.content,
+          content: contentItem.suggestions[suggestionIndex].content,
           platform: platform,
           research_data: researchData,
         });
@@ -264,10 +315,42 @@ const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) 
     }
   };
 
-  const handlePublish = async (platform) => {
-    // This would publish immediately
-    console.log('Publish now:', platform);
-    alert('Publishing feature will be implemented with platform integrations');
+  const publishMutation = useMutation({
+    mutationFn: scheduleAPI.publishNow,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['posts']);
+    },
+  });
+
+  const handlePublish = async (platform, suggestionIndex) => {
+    const contentItem = content.find(item => item.platform === platform);
+    if (contentItem && contentItem.suggestions[suggestionIndex]) {
+      setPublishingPlatform(`${platform}-${suggestionIndex}`);
+      try {
+        // First save the content
+        const savedPost = await saveMutation.mutateAsync({
+          topic: researchData?.query || 'Generated Content',
+          content: contentItem.suggestions[suggestionIndex].content,
+          platform: platform,
+          research_data: researchData,
+        });
+
+        // Then publish it immediately
+        const publishResult = await publishMutation.mutateAsync(savedPost.data.id);
+        
+        if (publishResult.data.platform_data?.url) {
+          alert(`Content published successfully to ${platform === 'twitter' ? 'X/Twitter' : 'LinkedIn'}!\n\nView at: ${publishResult.data.platform_data.url}`);
+        } else {
+          alert(`Content published successfully to ${platform === 'twitter' ? 'X/Twitter' : 'LinkedIn'}!`);
+        }
+      } catch (error) {
+        const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+        alert(`Failed to publish content: ${errorMessage}`);
+        console.error('Publish error:', error);
+      } finally {
+        setPublishingPlatform(null);
+      }
+    }
   };
 
   return (
@@ -284,12 +367,13 @@ const ContentPreview = ({ generatedContent, researchData, onBack, onComplete }) 
         {content.map((item) => (
           <Grid item xs={12} md={6} key={item.platform}>
             <ContentCard
-              content={item}
+              contentItem={item}
               onEdit={handleEdit}
               onRegenerate={handleRegenerate}
               onSave={handleSave}
               onSchedule={handleSchedule}
               onPublish={handlePublish}
+              isPublishing={publishingPlatform}
             />
           </Grid>
         ))}

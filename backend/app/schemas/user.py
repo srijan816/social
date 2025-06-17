@@ -55,3 +55,9 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     sub: Optional[int] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    remember_me: bool = False

@@ -33,16 +33,22 @@ class ContentGenerationRequest(BaseModel):
 
 class ResearchData(BaseModel):
     query: str
-    findings: List[Dict[str, Any]]
+    findings: List[str]
     sources: List[str]
-    timestamp: datetime
+    timestamp: str
+    full_content: Optional[str] = None
+    search_results: Optional[List[Dict[str, Any]]] = None
 
 
-class GeneratedContent(BaseModel):
-    platform: Platform
+class PostSuggestion(BaseModel):
     content: str
     character_count: int
     hashtags: Optional[List[str]] = None
+    variation_note: Optional[str] = None
+
+class GeneratedContent(BaseModel):
+    platform: Platform
+    suggestions: List[PostSuggestion] = Field(..., min_items=1, max_items=3)
     research_data: Optional[ResearchData] = None
 
 

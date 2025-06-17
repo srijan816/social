@@ -12,7 +12,7 @@ from app.core.security import (
     get_password_hash,
 )
 from app.models.user import User
-from app.schemas.user import Token, UserCreate, User as UserSchema
+from app.schemas.user import Token, UserCreate, User as UserSchema, LoginRequest
 from sqlalchemy import select
 
 router = APIRouter()
@@ -67,12 +67,12 @@ async def register(
 
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """Login and get access token"""
     
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    user = await authenticate_user(db, login_data.username, login_data.password)
     
     if not user:
         raise HTTPException(
@@ -87,7 +87,13 @@ async def login(
             detail="Inactive user"
         )
     
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Set token expiration based on remember_me
+    if login_data.remember_me:
+        # 2 weeks = 14 days = 20160 minutes
+        access_token_expires = timedelta(days=14)
+    else:
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
     access_token = create_access_token(
         subject=user.id, expires_delta=access_token_expires
     )

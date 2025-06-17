@@ -23,8 +23,8 @@ const Generate = () => {
     topic: '',
     platforms: ['twitter', 'linkedin'],
     ai_provider: 'claude',
-    includeResearch: true,
-    additionalContext: '',
+    include_research: true,
+    additional_context: '',
   });
   const [researchData, setResearchData] = useState(null);
   const [generatedContent, setGeneratedContent] = useState([]);
@@ -61,8 +61,8 @@ const Generate = () => {
         topic: '',
         platforms: ['twitter', 'linkedin'],
         ai_provider: 'claude',
-        includeResearch: true,
-        additionalContext: '',
+        include_research: true,
+        additional_context: '',
       });
       setResearchData(null);
       setGeneratedContent([]);
@@ -91,7 +91,7 @@ const Generate = () => {
         return (
           <ResearchPreview
             topic={formData.topic}
-            additionalContext={formData.additionalContext}
+            additionalContext={formData.additional_context}
             onResearchComplete={setResearchData}
             onNext={handleNext}
             onBack={handleBack}

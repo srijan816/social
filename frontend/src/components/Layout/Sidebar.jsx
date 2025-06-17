@@ -13,6 +13,7 @@ import {
 import {
   Dashboard as DashboardIcon,
   Create as CreateIcon,
+  Send as QuickPostIcon,
   Schedule as ScheduleIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
@@ -29,6 +30,11 @@ const menuItems = [
     text: 'Generate Content',
     icon: <CreateIcon />,
     path: '/generate',
+  },
+  {
+    text: 'Quick Post',
+    icon: <QuickPostIcon />,
+    path: '/quick-post',
   },
   {
     text: 'Schedule',

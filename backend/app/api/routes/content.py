@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.api.dependencies import get_db, get_current_active_user
 from app.models.user import User
-from app.models.content import Post, ContentTemplate
+from app.models.content import Post, ContentTemplate, Platform as PlatformEnum
 from app.schemas.content import (
     ContentGenerationRequest,
     GeneratedContent,
@@ -16,6 +16,7 @@ from app.schemas.content import (
 )
 from app.services.ai_service import ai_service, AIProvider
 from app.services.perplexity_service import perplexity_service
+from app.services.claude_service import claude_service
 
 router = APIRouter()
 
@@ -27,6 +28,12 @@ async def generate_content(
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """Generate content for multiple platforms"""
+    
+    print(f"🎯 Content generation request:")
+    print(f"   Topic: {request.topic}")
+    print(f"   Platforms: {[p.value for p in request.platforms]}")
+    print(f"   AI Provider: {request.ai_provider}")
+    print(f"   Include Research: {request.include_research}")
     
     generated_content = []
     research_data = None
@@ -46,7 +53,7 @@ async def generate_content(
     # Generate content for each platform
     for platform in request.platforms:
         try:
-            content = await ai_service.generate_content(
+            suggestions_data = await ai_service.generate_content(
                 request.topic,
                 platform.value,
                 request.ai_provider,
@@ -54,22 +61,28 @@ async def generate_content(
                 request.additional_context
             )
             
-            # Extract hashtags if present
-            hashtags = []
-            if platform.value == "linkedin":
-                import re
-                hashtags = re.findall(r'#(\w+)', content)
-                hashtags = hashtags[:5]  # Limit to 5 hashtags
+            # Convert to PostSuggestion objects
+            from app.schemas.content import PostSuggestion
+            suggestions = []
+            for suggestion_data in suggestions_data:
+                suggestions.append(PostSuggestion(
+                    content=suggestion_data["content"],
+                    character_count=suggestion_data["character_count"],
+                    hashtags=suggestion_data.get("hashtags"),
+                    variation_note=suggestion_data.get("variation_note")
+                ))
             
             generated_content.append(GeneratedContent(
                 platform=platform,
-                content=content,
-                character_count=len(content),
-                hashtags=hashtags if hashtags else None,
+                suggestions=suggestions,
                 research_data=research_data
             ))
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"❌ Content generation error for {platform.value}:")
+            print(error_details)
             raise HTTPException(
                 status_code=500,
                 detail=f"Content generation failed for {platform.value}: {str(e)}"
@@ -86,11 +99,14 @@ async def create_post(
 ) -> Any:
     """Create a new post"""
     
+    # Convert platform string to enum
+    platform_enum = PlatformEnum[post_data.platform.upper()]
+    
     db_post = Post(
         user_id=current_user.id,
         topic=post_data.topic,
         content=post_data.content,
-        platform=post_data.platform,
+        platform=platform_enum,
         research_data=post_data.research_data
     )
     
@@ -153,19 +169,22 @@ async def generate_variations(
         raise HTTPException(status_code=404, detail="Post not found")
     
     try:
+        # Handle platform value safely for both enum cases
+        platform_value = post.platform.value.lower() if hasattr(post.platform, 'value') else str(post.platform).lower()
+        
         # Use user's API key if available
         user_claude_key = current_user.anthropic_api_key
         if user_claude_key:
             user_claude_service = type(claude_service)(user_claude_key)
             variations = await user_claude_service.generate_variations(
                 post.content,
-                post.platform.value,
+                platform_value,
                 count
             )
         else:
             variations = await claude_service.generate_variations(
                 post.content,
-                post.platform.value,
+                platform_value,
                 count
             )
         
@@ -189,11 +208,14 @@ async def create_template(
 ) -> Any:
     """Create a content template"""
     
+    # Convert platform string to enum
+    platform_enum = PlatformEnum[template_data.platform.upper()]
+    
     db_template = ContentTemplate(
         user_id=current_user.id,
         name=template_data.name,
         description=template_data.description,
-        platform=template_data.platform,
+        platform=platform_enum,
         template=template_data.template
     )
     
@@ -240,6 +262,34 @@ async def get_trending_topics(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch trending topics: {str(e)}"
+        )
+
+
+@router.post("/research")
+async def research_topic(
+    request: dict,
+    current_user: User = Depends(get_current_active_user)
+) -> Any:
+    """Research a topic using Perplexity API"""
+    
+    try:
+        topic = request.get("topic")
+        additional_context = request.get("additional_context")
+        
+        if not topic:
+            raise HTTPException(status_code=400, detail="Topic is required")
+        
+        research_data = await perplexity_service.research_topic(
+            topic,
+            additional_context
+        )
+        
+        return research_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Research failed: {str(e)}"
         )
 
 
